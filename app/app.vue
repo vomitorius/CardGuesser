@@ -14,6 +14,15 @@
           class="video-stream"
         ></video>
         
+        <!-- Card detection area overlay -->
+        <div v-if="cameraActive" class="detection-overlay">
+          <div class="card-guide">
+            <div class="card-frame">
+              <span class="guide-text">Position card here</span>
+            </div>
+          </div>
+        </div>
+        
         <canvas
           ref="canvasElement"
           class="detection-canvas"
@@ -24,8 +33,8 @@
         <button @click="startCamera" :disabled="isProcessing" class="btn btn-primary">
           {{ cameraActive ? 'Camera Active' : 'Start Camera' }}
         </button>
-        <button @click="toggleDetection" :disabled="!cameraActive" class="btn btn-secondary">
-          {{ detectionActive ? 'Stop Detection' : 'Start Detection' }}
+        <button @click="captureCard" :disabled="!cameraActive || isProcessing" class="btn btn-secondary">
+          📸 Capture Card
         </button>
       </div>
       
@@ -360,7 +369,7 @@ const startCamera = async () => {
       videoElement.value.srcObject = stream
       videoElement.value.play()
       cameraActive.value = true
-      status.value = 'Camera active'
+      status.value = 'Ready to capture - position a card in the frame'
     }
   } catch (error) {
     console.error('Error accessing camera:', error)
@@ -371,35 +380,16 @@ const startCamera = async () => {
 }
 
 const toggleDetection = () => {
-  if (detectionActive.value) {
-    stopDetection()
-  } else {
-    startDetection()
-  }
+  // Deprecated - replaced with manual capture
 }
 
-const startDetection = () => {
-  if (!cameraActive.value || !model) return
-  
-  detectionActive.value = true
-  status.value = 'Detection active'
-  processFrame()
-}
-
-const stopDetection = () => {
-  detectionActive.value = false
-  status.value = 'Detection stopped'
-  
-  if (animationId) {
-    cancelAnimationFrame(animationId)
-    animationId = null
-  }
-}
-
-const processFrame = async () => {
-  if (!detectionActive.value || !videoElement.value || !canvasElement.value) return
+const captureCard = async () => {
+  if (!cameraActive.value || !model || isProcessing.value) return
   
   try {
+    isProcessing.value = true
+    status.value = 'Capturing and analyzing card...'
+    
     const video = videoElement.value
     const canvas = canvasElement.value
     const ctx = canvas.getContext('2d')
@@ -415,13 +405,25 @@ const processFrame = async () => {
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
     await detectCard(imageData)
     
-    // Continue processing frames
-    if (detectionActive.value) {
-      animationId = requestAnimationFrame(processFrame)
-    }
+    status.value = cameraActive.value ? 'Ready to capture' : 'Camera not active'
   } catch (error) {
-    console.error('Error processing frame:', error)
+    console.error('Error capturing card:', error)
+    status.value = 'Error capturing card'
+  } finally {
+    isProcessing.value = false
   }
+}
+
+const startDetection = () => {
+  // Deprecated - replaced with manual capture
+}
+
+const stopDetection = () => {
+  // Deprecated - no longer needed with manual capture
+}
+
+const processFrame = async () => {
+  // Deprecated - replaced with manual capture
 }
 
 const detectCard = async (imageData) => {
@@ -455,16 +457,20 @@ const detectCard = async (imageData) => {
     // Convert confidence to percentage and ensure it's reasonable
     const confidencePercentage = Math.round(maxConfidence * 100)
     
-    // Only show predictions with reasonable confidence (above 15% for demo)
-    // In a real trained model, this threshold would be higher
-    if (confidencePercentage > 15) {
+    // Only show predictions with high confidence (above 50% for real use)
+    // This prevents false positives when no card is present
+    if (confidencePercentage > 50) {
       prediction.value = {
         card: cardDeck[maxConfidenceIndex],
         confidence: confidencePercentage
       }
+      status.value = 'Card detected!'
     } else {
       // Clear prediction if confidence is too low
       prediction.value = null
+      status.value = confidencePercentage > 25 ? 
+        `Low confidence detection (${confidencePercentage}%) - try repositioning the card` : 
+        'No card detected - position a card in the frame and try again'
     }
     
     // Clean up tensors
@@ -473,17 +479,8 @@ const detectCard = async (imageData) => {
     
   } catch (error) {
     console.error('Error detecting card:', error)
-    
-    // Fallback to less frequent random predictions on error (for demo purposes)
-    if (Math.random() < 0.05) { // Only 5% chance to show fallback
-      const randomIndex = Math.floor(Math.random() * cardDeck.length)
-      const confidence = Math.floor(Math.random() * 20) + 20 // 20-40% confidence
-      
-      prediction.value = {
-        card: cardDeck[randomIndex] + ' (demo)',
-        confidence: confidence
-      }
-    }
+    status.value = 'Error analyzing image'
+    prediction.value = null
   }
 }
 
@@ -528,6 +525,60 @@ h1 {
   height: auto;
   border: 2px solid #3498db;
   border-radius: 8px;
+}
+
+.detection-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.card-guide {
+  position: relative;
+  width: 200px;
+  height: 280px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.card-frame {
+  width: 100%;
+  height: 100%;
+  border: 3px dashed rgba(255, 255, 255, 0.8);
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: pulse 2s infinite;
+}
+
+.guide-text {
+  color: white;
+  background: rgba(0, 0, 0, 0.7);
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: bold;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
+}
+
+@keyframes pulse {
+  0%, 100% { 
+    border-color: rgba(255, 255, 255, 0.8);
+    transform: scale(1);
+  }
+  50% { 
+    border-color: rgba(52, 152, 219, 0.9);
+    transform: scale(1.02);
+  }
 }
 
 .detection-canvas {
@@ -727,6 +778,16 @@ h1 {
     display: block;
     width: 100%;
     margin: 5px 0;
+  }
+  
+  .card-guide {
+    width: 150px;
+    height: 210px;
+  }
+  
+  .guide-text {
+    font-size: 12px;
+    padding: 6px 10px;
   }
 }
 </style>
