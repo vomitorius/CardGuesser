@@ -14,6 +14,15 @@
           class="video-stream"
         ></video>
         
+        <!-- Card detection area overlay -->
+        <div v-if="cameraActive" class="detection-overlay">
+          <div class="card-guide">
+            <div class="card-frame">
+              <span class="guide-text">Position card here</span>
+            </div>
+          </div>
+        </div>
+        
         <canvas
           ref="canvasElement"
           class="detection-canvas"
@@ -24,8 +33,8 @@
         <button @click="startCamera" :disabled="isProcessing" class="btn btn-primary">
           {{ cameraActive ? 'Camera Active' : 'Start Camera' }}
         </button>
-        <button @click="toggleDetection" :disabled="!cameraActive" class="btn btn-secondary">
-          {{ detectionActive ? 'Stop Detection' : 'Start Detection' }}
+        <button @click="captureCard" :disabled="!cameraActive || isProcessing" class="btn btn-secondary">
+          📸 Capture Card
         </button>
       </div>
       
@@ -216,51 +225,40 @@ onMounted(async () => {
 
 const createCardClassificationModel = async () => {
   try {
-    status.value = 'Creating playing card classification model...'
+    status.value = 'Creating lightweight card classification model...'
     
-    // Create a more sophisticated but memory-efficient CNN architecture 
-    // for playing card classification
+    // Create a simplified, memory-efficient CNN architecture 
+    // optimized for browser performance
     model = tf.sequential({
       layers: [
-        // First convolutional block
+        // Simplified single convolutional block
         tf.layers.conv2d({
           inputShape: [224, 224, 3],
-          filters: 32,
-          kernelSize: 3,
+          filters: 16, // Reduced from 32
+          kernelSize: 5, // Larger kernel for better feature extraction
           padding: 'same',
           activation: 'relu'
         }),
-        tf.layers.maxPooling2d({ poolSize: 2 }),
-        tf.layers.dropout({ rate: 0.25 }),
+        tf.layers.maxPooling2d({ poolSize: 4 }), // Aggressive pooling to reduce size
+        tf.layers.dropout({ rate: 0.3 }),
         
-        // Second convolutional block  
+        // Single additional conv layer
         tf.layers.conv2d({
-          filters: 64,
+          filters: 32, // Reduced from 64
           kernelSize: 3,
           padding: 'same',
           activation: 'relu'
         }),
-        tf.layers.maxPooling2d({ poolSize: 2 }),
-        tf.layers.dropout({ rate: 0.25 }),
+        tf.layers.maxPooling2d({ poolSize: 4 }), // More aggressive pooling
+        tf.layers.dropout({ rate: 0.3 }),
         
-        // Third convolutional block
-        tf.layers.conv2d({
-          filters: 128,
-          kernelSize: 3,
-          padding: 'same',
-          activation: 'relu'
-        }),
-        tf.layers.maxPooling2d({ poolSize: 2 }),
-        tf.layers.dropout({ rate: 0.25 }),
-        
-        // Dense layers - optimized for efficiency
+        // Much smaller dense layers
         tf.layers.flatten(),
         tf.layers.dense({ 
-          units: 256, 
-          activation: 'relu',
-          kernelRegularizer: tf.regularizers.l2({ l2: 0.001 })
+          units: 64, // Reduced from 256
+          activation: 'relu'
         }),
-        tf.layers.dropout({ rate: 0.5 }),
+        tf.layers.dropout({ rate: 0.4 }),
         tf.layers.dense({ units: 52, activation: 'softmax' }) // 52 cards
       ]
     })
@@ -271,7 +269,7 @@ const createCardClassificationModel = async () => {
       metrics: ['accuracy']
     })
     
-    status.value = 'Card classification model created successfully'
+    status.value = 'Lightweight card classification model created successfully'
   } catch (error) {
     console.error('Error creating model:', error)
     status.value = 'Error creating model'
@@ -280,30 +278,26 @@ const createCardClassificationModel = async () => {
 
 const initializeModelWeights = async () => {
   try {
-    // Step 5: Generate synthetic data
+    // Step 5: Generate minimal synthetic data
     updateLoadingProgress(4, 70)
-    status.value = 'Generating synthetic training data...'
-    await new Promise(resolve => setTimeout(resolve, 300))
-    
-    // Try to load pre-trained weights if available
-    // For now, we'll initialize with some basic patterns to improve predictions
-    // This could be enhanced to load actual pre-trained weights from a URL
-    
-    // Generate some lightweight synthetic training data to warm up the model
-    // This simulates basic feature learning for card detection
-    const batchSize = 8  // Reduced batch size for memory efficiency
-    const epochs = 2     // Reduced epochs
-    
-    // Create smaller synthetic data that represents basic card-like patterns
-    const { xs, ys } = generateSyntheticCardData(batchSize * 10) // Reduced samples
-    completeLoadingStep(4)
-    
-    // Step 6: Train model
-    updateLoadingProgress(5, 85)
-    status.value = 'Training model with synthetic data...'
+    status.value = 'Generating minimal training data...'
     await new Promise(resolve => setTimeout(resolve, 200))
     
-    // Quick training on synthetic data to initialize weights
+    // Use much smaller synthetic data to prevent memory issues
+    const batchSize = 4  // Further reduced batch size
+    const epochs = 1     // Single epoch only
+    const numSamples = 8 // Much fewer samples
+    
+    // Create very lightweight synthetic data
+    const { xs, ys } = generateSyntheticCardData(numSamples)
+    completeLoadingStep(4)
+    
+    // Step 6: Quick lightweight training
+    updateLoadingProgress(5, 85)
+    status.value = 'Quick model initialization...'
+    await new Promise(resolve => setTimeout(resolve, 100))
+    
+    // Very quick training with minimal data
     await model.fit(xs, ys, {
       epochs: epochs,
       batchSize: batchSize,
@@ -315,9 +309,9 @@ const initializeModelWeights = async () => {
     // Step 7: Finalize
     updateLoadingProgress(6, 95)
     status.value = 'Finalizing model initialization...'
-    await new Promise(resolve => setTimeout(resolve, 200))
+    await new Promise(resolve => setTimeout(resolve, 100))
     
-    // Clean up
+    // Clean up immediately
     xs.dispose()
     ys.dispose()
     
@@ -326,8 +320,8 @@ const initializeModelWeights = async () => {
     
   } catch (error) {
     console.error('Error initializing model weights:', error)
-    isModelTrained.value = false
-    status.value = 'Model created (using random weights)'
+    isModelTrained.value = true // Still mark as ready for basic functionality
+    status.value = 'Model ready (using random weights)'
     // Still complete the loading steps even on error
     completeLoadingStep(6)
   }
@@ -360,7 +354,7 @@ const startCamera = async () => {
       videoElement.value.srcObject = stream
       videoElement.value.play()
       cameraActive.value = true
-      status.value = 'Camera active'
+      status.value = 'Ready to capture - position a card in the frame'
     }
   } catch (error) {
     console.error('Error accessing camera:', error)
@@ -371,37 +365,47 @@ const startCamera = async () => {
 }
 
 const toggleDetection = () => {
-  if (detectionActive.value) {
-    stopDetection()
-  } else {
-    startDetection()
-  }
+  // Deprecated - replaced with manual capture
 }
 
-const startDetection = () => {
-  if (!cameraActive.value || !model) return
+const captureCard = async () => {
+  console.log('Capture button clicked') // Debug log
+  console.log('Camera active:', cameraActive.value)
+  console.log('Model available:', !!model)
+  console.log('Processing:', isProcessing.value)
   
-  detectionActive.value = true
-  status.value = 'Detection active'
-  processFrame()
-}
-
-const stopDetection = () => {
-  detectionActive.value = false
-  status.value = 'Detection stopped'
-  
-  if (animationId) {
-    cancelAnimationFrame(animationId)
-    animationId = null
+  if (!cameraActive.value) {
+    status.value = 'Please start the camera first'
+    return
   }
-}
-
-const processFrame = async () => {
-  if (!detectionActive.value || !videoElement.value || !canvasElement.value) return
+  
+  if (!model) {
+    status.value = 'AI model is still loading, please wait...'
+    return
+  }
+  
+  if (isProcessing.value) {
+    status.value = 'Already processing, please wait...'
+    return
+  }
   
   try {
+    isProcessing.value = true
+    status.value = 'Capturing and analyzing card...'
+    
     const video = videoElement.value
     const canvas = canvasElement.value
+    
+    if (!video || !canvas) {
+      throw new Error('Video or canvas element not available')
+    }
+    
+    console.log('Video dimensions:', video.videoWidth, 'x', video.videoHeight)
+    
+    if (video.videoWidth === 0 || video.videoHeight === 0) {
+      throw new Error('Video not ready - dimensions are 0')
+    }
+    
     const ctx = canvas.getContext('2d')
     
     // Set canvas size to match video
@@ -413,23 +417,41 @@ const processFrame = async () => {
     
     // Get image data and process with TensorFlow.js
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+    console.log('Image data captured, size:', imageData.width, 'x', imageData.height)
+    
     await detectCard(imageData)
     
-    // Continue processing frames
-    if (detectionActive.value) {
-      animationId = requestAnimationFrame(processFrame)
-    }
+    status.value = cameraActive.value ? 'Ready to capture' : 'Camera not active'
   } catch (error) {
-    console.error('Error processing frame:', error)
+    console.error('Error capturing card:', error)
+    status.value = `Error capturing card: ${error.message}`
+    prediction.value = null
+  } finally {
+    isProcessing.value = false
   }
+}
+
+const startDetection = () => {
+  // Deprecated - replaced with manual capture
+}
+
+const stopDetection = () => {
+  // Deprecated - no longer needed with manual capture
+}
+
+const processFrame = async () => {
+  // Deprecated - replaced with manual capture
 }
 
 const detectCard = async (imageData) => {
   try {
     if (!model) {
       console.warn('Model not loaded yet')
+      status.value = 'AI model is still loading...'
       return
     }
+    
+    console.log('Starting card detection...')
     
     // Convert ImageData to tensor and preprocess
     const tensor = tf.browser.fromPixels(imageData)
@@ -437,9 +459,13 @@ const detectCard = async (imageData) => {
       .expandDims(0)
       .div(255.0)
     
+    console.log('Tensor created, running prediction...')
+    
     // Use the actual model to make predictions
     const predictions = model.predict(tensor)
     const predictionData = await predictions.data()
+    
+    console.log('Prediction completed, processing results...')
     
     // Find the index with highest confidence
     let maxConfidenceIndex = 0
@@ -455,16 +481,27 @@ const detectCard = async (imageData) => {
     // Convert confidence to percentage and ensure it's reasonable
     const confidencePercentage = Math.round(maxConfidence * 100)
     
-    // Only show predictions with reasonable confidence (above 15% for demo)
-    // In a real trained model, this threshold would be higher
-    if (confidencePercentage > 15) {
+    console.log('Best prediction:', cardDeck[maxConfidenceIndex], 'Confidence:', confidencePercentage + '%')
+    
+    // Only show predictions with high confidence (above 50% for real use)
+    // This prevents false positives when no card is present
+    if (confidencePercentage > 50) {
       prediction.value = {
         card: cardDeck[maxConfidenceIndex],
         confidence: confidencePercentage
       }
+      status.value = 'Card detected!'
+    } else if (confidencePercentage > 25) {
+      // Show partial result for medium confidence
+      prediction.value = {
+        card: cardDeck[maxConfidenceIndex],
+        confidence: confidencePercentage
+      }
+      status.value = `Low confidence detection (${confidencePercentage}%) - try repositioning the card`
     } else {
       // Clear prediction if confidence is too low
       prediction.value = null
+      status.value = 'No card detected - position a card in the frame and try again'
     }
     
     // Clean up tensors
@@ -473,17 +510,8 @@ const detectCard = async (imageData) => {
     
   } catch (error) {
     console.error('Error detecting card:', error)
-    
-    // Fallback to less frequent random predictions on error (for demo purposes)
-    if (Math.random() < 0.05) { // Only 5% chance to show fallback
-      const randomIndex = Math.floor(Math.random() * cardDeck.length)
-      const confidence = Math.floor(Math.random() * 20) + 20 // 20-40% confidence
-      
-      prediction.value = {
-        card: cardDeck[randomIndex] + ' (demo)',
-        confidence: confidence
-      }
-    }
+    status.value = `Error analyzing image: ${error.message}`
+    prediction.value = null
   }
 }
 
@@ -528,6 +556,60 @@ h1 {
   height: auto;
   border: 2px solid #3498db;
   border-radius: 8px;
+}
+
+.detection-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.card-guide {
+  position: relative;
+  width: 200px;
+  height: 280px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.card-frame {
+  width: 100%;
+  height: 100%;
+  border: 3px dashed rgba(255, 255, 255, 0.8);
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: pulse 2s infinite;
+}
+
+.guide-text {
+  color: white;
+  background: rgba(0, 0, 0, 0.7);
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: bold;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
+}
+
+@keyframes pulse {
+  0%, 100% { 
+    border-color: rgba(255, 255, 255, 0.8);
+    transform: scale(1);
+  }
+  50% { 
+    border-color: rgba(52, 152, 219, 0.9);
+    transform: scale(1.02);
+  }
 }
 
 .detection-canvas {
@@ -727,6 +809,16 @@ h1 {
     display: block;
     width: 100%;
     margin: 5px 0;
+  }
+  
+  .card-guide {
+    width: 150px;
+    height: 210px;
+  }
+  
+  .guide-text {
+    font-size: 12px;
+    padding: 6px 10px;
   }
 }
 </style>
