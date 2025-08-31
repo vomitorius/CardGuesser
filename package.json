@@ -1,0 +1,19 @@
+{
+  "name": "card-guesser",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "nuxt build",
+    "dev": "nuxt dev",
+    "generate": "nuxt generate",
+    "preview": "nuxt preview",
+    "postinstall": "nuxt prepare"
+  },
+  "dependencies": {
+    "@tensorflow/tfjs": "^4.22.0",
+    "@tensorflow/tfjs-backend-webgl": "^4.22.0",
+    "nuxt": "^4.0.3",
+    "vue": "^3.5.20",
+    "vue-router": "^4.5.1"
+  }
+}
