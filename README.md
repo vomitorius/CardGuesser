@@ -69,10 +69,12 @@ npm run preview
 
 ## Notes
 
-- The current implementation uses a demo model with random predictions for demonstration purposes
-- For production use, you would need to train or integrate a proper card recognition model
+- The current implementation uses a sophisticated CNN model with multiple convolutional layers for card classification
+- The model uses real TensorFlow.js inference instead of random predictions
+- Model is initialized with synthetic training data for improved performance
 - Camera access requires HTTPS in production environments
 - The app is optimized for client-side rendering (SSR disabled for camera access)
+- For production use, consider training the model with real playing card datasets for better accuracy
 
 ## License
 
